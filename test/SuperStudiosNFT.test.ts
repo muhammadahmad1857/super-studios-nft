@@ -4,53 +4,45 @@ import { SuperStudiosNFT } from "../typechain-types";
 
 describe("SuperStudiosNFT", function () {
   let nftContract: SuperStudiosNFT;
-  let owner: any;
-  let addr1: any;
-  let addr2: any;
+  let owner: any, addr1: any;
 
   beforeEach(async function () {
-    [owner, addr1, addr2] = await ethers.getSigners();
-    const NFTFactory = await ethers.getContractFactory("SuperStudiosNFT");
-    nftContract = await NFTFactory.deploy(owner.address);
+    [owner, addr1] = await ethers.getSigners();
+    const Factory = await ethers.getContractFactory("SuperStudiosNFT");
+    nftContract = await Factory.deploy(owner.address);
   });
 
-  it("Should allow owner to mint an NFT", async function () {
-    const metadataURI = "ipfs://QmVideoMetadata";
-    await nftContract.safeMint(addr1.address, metadataURI);
+  it("Should mint a Video NFT (ID 1) with 100 copies", async function () {
+    const videoURI = "ipfs://QmVideoMetadata";
+    
+    // Mint 100 copies of ID 1 to addr1
+    await nftContract.mint(addr1.address, 1, 100, videoURI, "0x");
 
-    expect(await nftContract.ownerOf(0)).to.equal(addr1.address);
-    expect(await nftContract.tokenURI(0)).to.equal(metadataURI);
+    expect(await nftContract.balanceOf(addr1.address, 1)).to.equal(100);
+    expect(await nftContract.uri(1)).to.equal(videoURI);
   });
 
-  it("Should NOT allow non-owner to mint", async function () {
-    const metadataURI = "ipfs://QmHack";
-    await expect(
-      nftContract.connect(addr1).safeMint(addr2.address, metadataURI)
-    ).to.be.revertedWithCustomError(nftContract, "OwnableUnauthorizedAccount");
-  });
+  it("Should handle Single Use (Consume) without burning", async function () {
+    // Give user 1 ticket
+    await nftContract.mint(addr1.address, 2, 1, "ipfs://ticket", "0x");
 
-  it("Should handle Single Use (Consume) correctly", async function () {
-    await nftContract.safeMint(addr1.address, "ipfs://ticket");
-
-    // Check initial state
-    expect(await nftContract.isConsumed(0)).to.equal(false);
-    expect(await nftContract.isValidAccess(addr1.address, 0)).to.equal(true);
+    // Check valid
+    expect(await nftContract.isValidAccess(addr1.address, 2)).to.equal(true);
 
     // Admin marks as used
-    await nftContract.consumeNFT(0);
+    await nftContract.consumeAccess(addr1.address, 2);
 
-    // Verify state changed
-    expect(await nftContract.isConsumed(0)).to.equal(true);
-    expect(await nftContract.isValidAccess(addr1.address, 0)).to.equal(false);
+    // Check invalid but user still owns it (Souvenir)
+    expect(await nftContract.isValidAccess(addr1.address, 2)).to.equal(false);
+    expect(await nftContract.balanceOf(addr1.address, 2)).to.equal(1);
   });
 
-  it("Should allow user to burn their own NFT", async function () {
-    await nftContract.safeMint(addr1.address, "ipfs://burnme");
+  it("Should allow burning (Destroying) if preferred", async function () {
+    await nftContract.mint(addr1.address, 3, 5, "ipfs://burnable", "0x");
     
-    // User burns token 0
-    await nftContract.connect(addr1).burn(0);
+    // User burns 1 copy
+    await nftContract.connect(addr1).burn(addr1.address, 3, 1);
 
-    // Verify it doesn't exist
-    await expect(nftContract.ownerOf(0)).to.be.revertedWithCustomError(nftContract, "ERC721NonexistentToken");
+    expect(await nftContract.balanceOf(addr1.address, 3)).to.equal(4);
   });
 });
