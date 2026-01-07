@@ -7,7 +7,22 @@ dotenv.config();
 const PRIVATE_KEY = process.env.PRIVATE_KEY || "";
 
 const config: HardhatUserConfig = {
-  solidity: "0.8.20",
+  solidity: {
+    compilers: [
+      {
+        version: "0.8.20", // New Contract
+        settings: {
+          optimizer: { enabled: true, runs: 200 },
+        },
+      },
+      {
+        version: "0.7.6", // Old Contract
+        settings: {
+          optimizer: { enabled: true, runs: 200 },
+        },
+      },
+    ],
+  },
   networks: {
     hardhat: {
       // Local testing network
